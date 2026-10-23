@@ -1,0 +1,74 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Format {
+  CINQ_VS_CINQ
+  SIX_VS_SIX
+}
+
+enum StatutOffre {
+  OUVERTE
+  MATCHEE
+}
+
+enum StatutInteret {
+  EN_ATTENTE
+  CONFIRME
+  REFUSE
+}
+
+enum Resultat {
+  VICTOIRE_CREATEUR
+  VICTOIRE_INTERESSE
+  NUL
+}
+
+model Utilisateur {
+  id        String   @id @default(uuid())
+  nom       String
+  telephone String   @unique
+  motDePasse String
+  photo     String?
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now())
+
+  offres    OffreMatch[]
+  interets  Interet[]
+}
+
+model OffreMatch {
+  id            String      @id @default(uuid())
+  debut         DateTime
+  fin           DateTime
+  format        Format
+  niveauPrefere String?
+  statut        StatutOffre @default(OUVERTE)
+  resultat      Resultat?
+  createdAt     DateTime    @default(now())
+
+  createurId String
+  createur   Utilisateur @relation(fields: [createurId], references: [id])
+
+  interets   Interet[]
+}
+
+model Interet {
+  id          String        @id @default(uuid())
+  statut      StatutInteret @default(EN_ATTENTE)
+  dateDemande DateTime      @default(now())
+
+  utilisateurId String
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
+
+  offreMatchId String
+  offreMatch   OffreMatch @relation(fields: [offreMatchId], references: [id])
+
+  @@unique([utilisateurId, offreMatchId])
+}
