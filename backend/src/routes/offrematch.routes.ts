@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../prisma';
 import { Prisma } from '@prisma/client';
-import { verifierToken, RequeteAuthentifiee } from '../middleware/auth.middleware';
+import { verifierToken, verifierTokenOptionnel, RequeteAuthentifiee } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -43,9 +43,10 @@ router.post('/', verifierToken, async (req: RequeteAuthentifiee, res) => {
   }
 });
 
-router.get('/', async (req, res) => {
+router.get('/', verifierTokenOptionnel, async (req: RequeteAuthentifiee, res) => {
   try {
     const { latitude, longitude, format, rayon } = req.query;
+    const utilisateurId = req.utilisateurId;
 
     if (!latitude || !longitude) {
       return res.status(400).json({ error: 'Latitude et longitude sont obligatoires pour la recherche' });
@@ -61,6 +62,10 @@ router.get('/', async (req, res) => {
 
     const filtreFormat = format
       ? Prisma.sql`AND o.format = ${format}::"Format"`
+      : Prisma.empty;
+
+    const filtreMesOffres = utilisateurId
+      ? Prisma.sql`AND o."createurId" <> ${utilisateurId}`
       : Prisma.empty;
 
     const offres = await prisma.$queryRaw`
@@ -80,7 +85,9 @@ router.get('/', async (req, res) => {
         FROM "OffreMatch" o
         JOIN "Utilisateur" u ON u.id = o."createurId"
         WHERE o.statut = 'OUVERTE'
+        AND o.debut > (now() AT TIME ZONE 'UTC')
         ${filtreFormat}
+        ${filtreMesOffres}
       ) AS offres
       WHERE distance_km <= ${rayonKm}
       ORDER BY distance_km ASC
@@ -90,6 +97,22 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(400).json({ error: 'Erreur lors de la recherche' });
+  }
+});
+
+router.get('/moi', verifierToken, async (req: RequeteAuthentifiee, res) => {
+  try {
+    const createurId = req.utilisateurId as string;
+
+    const offres = await prisma.offreMatch.findMany({
+      where: { createurId },
+      orderBy: { debut: 'desc' },
+      include: { _count: { select: { interets: true } } },
+    });
+
+    res.json(offres);
+  } catch (error) {
+    res.status(400).json({ error: 'Impossible de récupérer vos offres' });
   }
 });
 
