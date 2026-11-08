@@ -22,12 +22,15 @@ services:
       environment:
         DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
         JWT_SECRET: ${JWT_SECRET}
+        REDIS_URL: redis://redis:6379
 
       ports:
         - "3000:3000"
 
       depends_on:
         postgres:
+          condition: service_healthy
+        redis:
           condition: service_healthy
       restart: unless-stopped
 
@@ -40,6 +43,16 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
+
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
     postgres_data:
