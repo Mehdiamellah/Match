@@ -22,6 +22,9 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true,
-}
+    "skipLibCheck": true
+  },
+
+  // le seed vit hors du rootDir (il tourne via tsx, pas via tsc)
+  "exclude": ["prisma/seed.ts"]
 }

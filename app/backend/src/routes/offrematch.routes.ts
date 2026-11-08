@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../prisma';
 import { Prisma } from '@prisma/client';
 import { verifierToken, verifierTokenOptionnel, RequeteAuthentifiee } from '../middleware/auth.middleware';
+import { cacheAside, invaliderOffres, TTL_OFFRES } from '../cache';
 
 const router = Router();
 
@@ -37,6 +38,8 @@ router.post('/', verifierToken, async (req: RequeteAuthentifiee, res) => {
       data: { debut: dateDebut, fin: dateFin, format, niveauPrefere, createurId },
     });
 
+    await invaliderOffres();
+
     res.status(201).json(offre);
   } catch (error) {
     res.status(400).json({ error: "Impossible de créer l'offre" });
@@ -68,7 +71,14 @@ router.get('/', verifierTokenOptionnel, async (req: RequeteAuthentifiee, res) =>
       ? Prisma.sql`AND o."createurId" <> ${utilisateurId}`
       : Prisma.empty;
 
-    const offres = await prisma.$queryRaw`
+    // clé par filtre : identité + arrondi ~1 km + format + rayon (l'utilisateurId fait
+    // partie de la clé car le résultat dépend de ses propres offres masquées)
+    const latArr = lat.toFixed(2);
+    const lonArr = lon.toFixed(2);
+    const cle = `offres:${utilisateurId ?? 'anon'}:lat${latArr}:lon${lonArr}:${format ?? '*'}:r${rayonKm}`;
+
+    const offres = await cacheAside(cle, TTL_OFFRES, () =>
+      prisma.$queryRaw`
       SELECT * FROM (
         SELECT
           o.*,
@@ -91,7 +101,8 @@ router.get('/', verifierTokenOptionnel, async (req: RequeteAuthentifiee, res) =>
       ) AS offres
       WHERE distance_km <= ${rayonKm}
       ORDER BY distance_km ASC
-    `;
+    `
+    );
 
     res.json(offres);
   } catch (error) {
@@ -185,6 +196,8 @@ router.patch('/:id/resultat', verifierToken, async (req: RequeteAuthentifiee, re
       where: { id },
       data: { resultat },
     });
+
+    await invaliderOffres();
 
     res.json(offreMiseAJour);
   } catch (error) {

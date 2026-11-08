@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import prisma from './prisma';
+import './redis';
 import utilisateurRoutes from './routes/utilisateur.routes';
 import offreMatchRoutes from './routes/offrematch.routes';
 import interetRoutes from './routes/interet.routes';
