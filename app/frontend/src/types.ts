@@ -58,6 +58,15 @@ export type MaDemande = {
 
 export type Stats = { victoires: number; nuls: number; defaites: number };
 
+/** GET /interets/recues */
+export type DemandeRecue = {
+  id: string;
+  statut: StatutInteret;
+  dateDemande: string;
+  offre: { id: string; debut: string; fin: string; format: string; statut: string };
+  demandeur: { id: string; nom: string; photo: string | null; telephone: string | null };
+};
+
 /** GET /utilisateurs/moi */
 export type Profil = {
   id: string;
