@@ -55,8 +55,9 @@ jobs:
 
       - run: npx tsc --noEmit
 
-      - run: npm audit --audit-level=high
-        continue-on-error: true   # alerte sans bloquer — on triera les vulns ensemble
+      # bloque sur critique ; les high connus (chaine prisma CLI, dev-only) sont acceptés et tracés
+      # TODO : upgrade Prisma 6 -> 7 pour tout lever
+      - run: npm audit --audit-level=critical
 
   frontend:
     runs-on: ubuntu-latest
