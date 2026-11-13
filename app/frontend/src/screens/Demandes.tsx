@@ -37,7 +37,7 @@ export default function Demandes() {
   return (
     <>
       <h2 className="section" style={{ marginTop: 6 }}>
-        Reçues sur mes offres {recues ? `(${recues.length})` : ''}
+        Demandes reçues {recues ? `(${recues.length})` : ''}
       </h2>
       {err && <Reessayer message={err} surClic={() => setTick((t) => t + 1)} />}
       {(recues === null || envoyees === null) && !err && <Chargement texte="Chargement des demandes…" />}
@@ -79,7 +79,7 @@ export default function Demandes() {
         </div>
       )}
 
-      <h2 className="section">Envoyées par moi {envoyees ? `(${envoyees.length})` : ''}</h2>
+      <h2 className="section">Demandes envoyées {envoyees ? `(${envoyees.length})` : ''}</h2>
 
       {videPartout && (
         <Vide
