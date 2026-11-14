@@ -39,11 +39,13 @@ copy .env.example .env      # Linux/Mac : cp .env.example .env — puis ajuste s
 docker compose up -d        # postgres 16 + redis + backend (:3000) + front (:8080)
 ```
 
-Puis charger les données de démo **dans le conteneur backend** (aucun Node requis sur la machine) :
+Puis charger les données de démo (aucun Node requis sur la machine) :
 
 ```bash
-docker compose exec backend npm run seed   # utilisateurs autour de Marrakech, offres, demandes, historique
+docker compose --profile tools run --rm seed npm run seed   # utilisateurs autour de Marrakech, offres, demandes, historique
 ```
+
+> L'image du backend est une image de production (multi-stage) : elle ne contient pas les outils de dev (`tsx`, CLI Prisma). Le service `seed` réutilise l'étape `build` du même Dockerfile, qui a tout ce qu'il faut — d'où l'option `--profile tools`.
 
 > Les identifiants des comptes de démo sont affichés à la fin du seed (téléphones `0600112…`, mot de passe `foot2026`).
 
