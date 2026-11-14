@@ -1,44 +1,63 @@
-// Découvrir : recherche par distance + filtres, ouvert aux visiteurs non connectés.
+// Découvrir : "Où veux-tu jouer ?" — position réelle par défaut, villes en chips,
+// rayon fixe (50 km). Ouvert aux visiteurs non connectés.
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { FORMATS, type Format, type OffrePublique } from '../types';
 import { jour, heure, libelleFormat } from '../util';
 import { Icone, toast, Vide, Chargement, Reessayer } from '../ui';
 
-const FALLBACK = { lat: 31.6295, lon: -7.9811 }; // Marrakech
-const RAYONS = [5, 10, 20, 50];
+// Coordonnées des centres-ville (une seule source de vérité, facile à étendre)
+const VILLES = [
+  { nom: 'Marrakech', lat: 31.6295, lon: -7.9811 },
+  { nom: 'Casablanca', lat: 33.5731, lon: -7.5898 },
+  { nom: 'Rabat', lat: 34.0209, lon: -6.8416 },
+  { nom: 'Agadir', lat: 30.4278, lon: -9.5981 },
+  { nom: 'Tanger', lat: 35.7595, lon: -5.8340 },
+  { nom: 'Fès', lat: 34.0331, lon: -5.0003 },
+] as const;
+
+const RAYON_KM = 50;
+const MARRAKECH = VILLES[0];
+
+type Lieu = { lat: number; lon: number; label: string };
 
 export default function Decouvrir({ connecte, allerConnexion }: { connecte: boolean; allerConnexion: () => void }) {
-  const [coords, setCoords] = useState<{ lat: number; lon: number; source: 'geoloc' | 'defaut' } | null>(null);
+  const [lieu, setLieu] = useState<Lieu | null>(null);
   const [format, setFormat] = useState<Format | ''>('');
-  const [rayon, setRayon] = useState(20);
   const [offres, setOffres] = useState<OffrePublique[] | null>(null);
   const [err, setErr] = useState('');
   const [tick, setTick] = useState(0);
   const [faits, setFaits] = useState<Set<string>>(new Set());
   const seq = useRef(0); // ignore les réponses périmées quand les filtres changent vite
 
-  useEffect(() => {
+  const activerGeoloc = () => {
+    setLieu(null); // "Localisation en cours…" pendant la résolution
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (p) => setCoords({ lat: p.coords.latitude, lon: p.coords.longitude, source: 'geoloc' }),
-        () => setCoords({ ...FALLBACK, source: 'defaut' }),
+        (p) => setLieu({ lat: p.coords.latitude, lon: p.coords.longitude, label: 'ma position' }),
+        () => {
+          toast('Géolocalisation indisponible — Marrakech par défaut', 'erreur');
+          setLieu({ ...MARRAKECH, label: MARRAKECH.nom });
+        },
         { timeout: 6000, maximumAge: 300_000 },
       );
     } else {
-      setCoords({ ...FALLBACK, source: 'defaut' });
+      setLieu({ ...MARRAKECH, label: MARRAKECH.nom });
     }
-  }, []);
+  };
+
+  // Position réelle au premier chargement
+  useEffect(() => { activerGeoloc(); }, []);
 
   useEffect(() => {
-    if (!coords) return;
+    if (!lieu) return;
     const n = ++seq.current;
     setOffres(null);
     setErr('');
-    api.chercher(coords.lat, coords.lon, rayon, format || undefined)
+    api.chercher(lieu.lat, lieu.lon, RAYON_KM, format || undefined)
       .then((r) => { if (n === seq.current) setOffres(r as OffrePublique[]); })
       .catch((e) => { if (n === seq.current) setErr((e as Error).message); });
-  }, [coords, format, rayon, tick]);
+  }, [lieu, format, tick]);
 
   const interesser = async (o: OffrePublique) => {
     if (!connecte) {
@@ -55,8 +74,27 @@ export default function Decouvrir({ connecte, allerConnexion }: { connecte: bool
     }
   };
 
+  const estMaPosition = lieu?.label === 'ma position';
+
   return (
     <>
+      <p className="section" style={{ marginTop: 6 }}>Où veux-tu jouer ?</p>
+      <div className="chips" role="group" aria-label="Lieu">
+        <button className="chip" aria-pressed={estMaPosition} onClick={activerGeoloc}>
+          <Icone nom="pin" size={14} /> Ma position
+        </button>
+        {VILLES.map((v) => (
+          <button
+            key={v.nom}
+            className="chip"
+            aria-pressed={lieu?.label === v.nom}
+            onClick={() => setLieu({ lat: v.lat, lon: v.lon, label: v.nom })}
+          >
+            {v.nom}
+          </button>
+        ))}
+      </div>
+
       <div className="chips" role="group" aria-label="Format">
         <button className="chip" aria-pressed={format === ''} onClick={() => setFormat('')}>Tous</button>
         {FORMATS.map((f) => (
@@ -65,30 +103,19 @@ export default function Decouvrir({ connecte, allerConnexion }: { connecte: bool
           </button>
         ))}
       </div>
-      <div className="chips" role="group" aria-label="Rayon">
-        {RAYONS.map((r) => (
-          <button key={r} className="chip" aria-pressed={rayon === r} onClick={() => setRayon(r)}>
-            {r} km
-          </button>
-        ))}
-      </div>
-
-      <p className="petit muted" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
-        <Icone nom="pin" size={14} />
-        {coords ? (coords.source === 'geoloc' ? 'Matches trouvés autour de ta position' : 'Marrakech par défaut (géoloc off)') : 'Localisation en cours…'}
-      </p>
 
       {err && <Reessayer message={err} surClic={() => setTick((t) => t + 1)} />}
-      {coords && offres === null && !err && <Chargement texte="Recherche des matchs autour de toi…" />}
-      {offres?.length === 0 && (
+      {!lieu && !err && <Chargement texte="Localisation en cours…" />}
+      {lieu && offres === null && !err && <Chargement texte={`Recherche des matchs autour de ${lieu.label}…`} />}
+      {offres?.length === 0 && lieu && (
         <Vide
-          titre="Aucun match dans ce rayon"
-          hint="Élargis le rayon, ou lance la partie en proposant ton propre créneau."
+          titre={`Aucun match à moins de ${RAYON_KM} km de ${lieu.label}`}
+          hint="Choisis une autre ville, ou lance la partie en proposant ton propre créneau."
         />
       )}
-      {offres && offres.length > 0 && (
+      {offres && offres.length > 0 && lieu && (
         <p className="petit muted" style={{ marginBottom: 10 }}>
-          {offres.length} match{offres.length > 1 ? 's' : ''} ouvert{offres.length > 1 ? 's' : ''}
+          {offres.length} match{offres.length > 1 ? 's' : ''} à moins de {RAYON_KM} km de {lieu.label}
         </p>
       )}
       <div className="grille">
