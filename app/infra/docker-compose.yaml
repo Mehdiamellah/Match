@@ -18,7 +18,9 @@ services:
     
 
   backend:
-      build: ../backend
+      build:
+        context: ../backend
+        target: production       # l'étape finale du multi-stage
       environment:
         DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
         JWT_SECRET: ${JWT_SECRET}
@@ -33,6 +35,21 @@ services:
         redis:
           condition: service_healthy
       restart: unless-stopped
+
+  # Outil ponctuel : charge les données de démo.
+  # Utilise l'étape "build" du MÊME Dockerfile (deps complètes : tsx + prisma CLI),
+  # car l'image de production n'a pas d'outils de dev — c'est voulu.
+  # Usage : docker compose --profile tools run --rm seed npm run seed
+  seed:
+      build:
+        context: ../backend
+        target: build
+      environment:
+        DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      depends_on:
+        postgres:
+          condition: service_healthy
+      profiles: ["tools"]
 
   frontend:
     build: ../frontend
