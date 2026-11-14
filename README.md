@@ -35,15 +35,17 @@ Prérequis : **Node 20+** et **PostgreSQL** local — ou simplement **Docker**.
 
 ```bash
 cd app/infra
-docker compose up          # postgres 16 + redis + backend (:3000) + front (:5173)
+copy .env.example .env      # Linux/Mac : cp .env.example .env — puis ajuste si tu veux
+docker compose up -d        # postgres 16 + redis + backend (:3000) + front (:8080)
 ```
 
-Puis, dans un autre terminal, charger les données de démo :
+Puis charger les données de démo **dans le conteneur backend** (aucun Node requis sur la machine) :
 
 ```bash
-cd app/backend
-npm run seed               # utilisateurs autour de Marrakech, offres, demandes, un match confirmé + historique
+docker compose exec backend npm run seed   # utilisateurs autour de Marrakech, offres, demandes, historique
 ```
+
+> Les identifiants des comptes de démo sont affichés à la fin du seed (téléphones `0600112…`, mot de passe `foot2026`).
 
 > Le backend a besoin de `.env` (DATABASE_URL, JWT_SECRET — REDIS_URL est optionnel, défaut : `redis://redis:6379`, le nom du service dans le compose ; mets `redis://localhost:6379` en dev manuel). Voir `backend/.env.example`. Le cache est *fail-open* : Redis éteint = app plus lente, jamais en panne.
 
