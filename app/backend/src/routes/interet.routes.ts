@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import prisma from '../prisma';
 import { verifierToken, RequeteAuthentifiee } from '../middleware/auth.middleware';
+import { publierEvenement } from '../kafka';
+
 
 const router = Router();
 
@@ -120,6 +122,12 @@ router.patch('/:id/confirmer', verifierToken, async (req: RequeteAuthentifiee, r
           where: offresEnConflit,
         }),
       ]);
+
+    // la transaction a réussi → on publie l'événement (le consumer le traitera)
+    await publierEvenement('match.confirme', {
+      offreMatchId: interet.offreMatchId,
+      demandeurId: interet.utilisateurId,
+    });
 
     res.json({
       interet: interetConfirme,
