@@ -58,6 +58,9 @@ export const api = {
   // GET /interets/moi
   mesDemandes: () => req('/interets/moi'),
 
+  // GET /interets/recues — demandes reçues sur MES offres
+  demandesRecues: () => req('/interets/recues'),
+
   // PATCH /offres-match/:id/resultat
   enregistrerResultat: (offreId: string, resultat: string) =>
     req(`/offres-match/${offreId}/resultat`, { method: 'PATCH', body: JSON.stringify({ resultat }) }),

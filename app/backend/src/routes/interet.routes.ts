@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import prisma from '../prisma';
 import { verifierToken, RequeteAuthentifiee } from '../middleware/auth.middleware';
+import { publierEvenement } from '../kafka';
+
 
 const router = Router();
 
@@ -121,6 +123,12 @@ router.patch('/:id/confirmer', verifierToken, async (req: RequeteAuthentifiee, r
         }),
       ]);
 
+    // la transaction a réussi → on publie l'événement (le consumer le traitera)
+    await publierEvenement('match.confirme', {
+      offreMatchId: interet.offreMatchId,
+      demandeurId: interet.utilisateurId,
+    });
+
     res.json({
       interet: interetConfirme,
       nombreRefuses: autresRefuses.count,
@@ -129,6 +137,43 @@ router.patch('/:id/confirmer', verifierToken, async (req: RequeteAuthentifiee, r
     });
   } catch (error) {
     res.status(400).json({ error: 'Impossible de confirmer cet intérêt' });
+  }
+});
+
+router.get('/recues', verifierToken, async (req: RequeteAuthentifiee, res) => {
+  try {
+    const createurId = req.utilisateurId as string;
+
+    const recues = await prisma.interet.findMany({
+      where: { offreMatch: { createurId } },
+      orderBy: { dateDemande: 'desc' },
+      include: {
+        utilisateur: { select: { id: true, nom: true, photo: true, telephone: true } },
+        offreMatch: { select: { id: true, debut: true, fin: true, format: true, statut: true } },
+      },
+    });
+
+    const resultat = recues.map((i) => ({
+      id: i.id,
+      statut: i.statut,
+      dateDemande: i.dateDemande,
+      offre: {
+        id: i.offreMatch.id,
+        debut: i.offreMatch.debut,
+        fin: i.offreMatch.fin,
+        format: i.offreMatch.format,
+        statut: i.offreMatch.statut,
+      },
+      // le téléphone ne circule que si le lien est confirmé (règle des deux côtés)
+      demandeur:
+        i.statut === 'CONFIRME'
+          ? i.utilisateur
+          : { id: i.utilisateur.id, nom: i.utilisateur.nom, photo: i.utilisateur.photo, telephone: null },
+    }));
+
+    res.json(resultat);
+  } catch (error) {
+    res.status(400).json({ error: 'Impossible de récupérer les demandes reçues' });
   }
 });
 

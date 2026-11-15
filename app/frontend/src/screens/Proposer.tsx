@@ -11,11 +11,23 @@ const CHOIX_RESULTAT: { r: Resultat; texte: string }[] = [
   { r: 'VICTOIRE_INTERESSE', texte: 'Eux' },
 ];
 
+// Créneau simplifié : 3 jours possibles, coup d'envoi au curseur, match d'une heure.
+// On ne programme pas un match à 8h du matin → de 11h jusqu'à minuit.
+const JOURS: { j: number; texte: string }[] = [
+  { j: 0, texte: "Aujourd'hui" },
+  { j: 1, texte: 'Demain' },
+  { j: 2, texte: 'Le lendemain' },
+];
+const H_MIN = 11;          // premier coup d'envoi : 11h00
+const H_MAX = 23;          // dernier coup d'envoi : 23h00 → fin à minuit
+const DUREE_MIN = 60;      // un match = une heure
+const heureFin = (h: number) => `${(h + DUREE_MIN / 60) % 24}h00`;
+
 export default function Proposer() {
   const [offres, setOffres] = useState<OffreMoi[] | null>(null);
   const [err, setErr] = useState('');
   const [tick, setTick] = useState(0);
-  const [f, setF] = useState({ debut: '', fin: '', format: 'CINQ_VS_CINQ' as Format, niveauPrefere: '' });
+  const [f, setF] = useState({ jour: 0, heure: 19, format: 'CINQ_VS_CINQ' as Format });
   const [errF, setErrF] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
@@ -33,16 +45,16 @@ export default function Proposer() {
   const creer = async (e: FormEvent) => {
     e.preventDefault();
     setErrF('');
-    if (!f.debut || !f.fin) return setErrF('Choisis le début et la fin du créneau');
-    const d = new Date(f.debut);
-    const fi = new Date(f.fin);
-    if (fi <= d) return setErrF('La fin du créneau doit être après le début');
-    if (d.getTime() < Date.now()) return setErrF('Le créneau commence dans le passé — vise plus tard 🕒');
+    const d = new Date();
+    d.setDate(d.getDate() + f.jour);
+    d.setHours(f.heure, 0, 0, 0);
+    const fi = new Date(d.getTime() + DUREE_MIN * 60_000);
+    if (d.getTime() < Date.now()) return setErrF('Ce créneau est déjà passé — vise une heure plus tard 🕒');
     setEnvoi(true);
     try {
-      await api.creer({ debut: d.toISOString(), fin: fi.toISOString(), format: f.format, niveauPrefere: f.niveauPrefere.trim() || null });
+      // toISOString() : horodatage explicite avec fuseau → plus de décalage horaire, où que tourne le backend
+      await api.creer({ debut: d.toISOString(), fin: fi.toISOString(), format: f.format });
       toast('Offre publiée ✓ Les joueurs du coin la verront dès maintenant');
-      setF((x) => ({ ...x, debut: '', fin: '' }));
       setTick((t) => t + 1);
     } catch (e2) {
       setErrF((e2 as Error).message);
@@ -94,15 +106,20 @@ export default function Proposer() {
             </button>
           ))}
         </div>
-        <label className="field">Début
-          <input type="datetime-local" required value={f.debut} onChange={(e) => setF({ ...f, debut: e.target.value })} />
+        <label className="field">Jour
+          <div className="seg" style={{ marginTop: 6 }}>
+            {JOURS.map((x) => (
+              <button key={x.j} type="button" aria-pressed={f.jour === x.j} onClick={() => setF({ ...f, jour: x.j })}>
+                {x.texte}
+              </button>
+            ))}
+          </div>
         </label>
-        <label className="field">Fin du créneau
-          <input type="datetime-local" required value={f.fin} onChange={(e) => setF({ ...f, fin: e.target.value })} />
-        </label>
-        <label className="field">Niveau souhaité (facultatif)
-          <input value={f.niveauPrefere} placeholder="Ex : loisir, intermédiaire…"
-            onChange={(e) => setF({ ...f, niveauPrefere: e.target.value })} />
+        <label className="field">
+          Coup d'envoi <strong style={{ color: 'var(--blanc, #fff)' }}>{f.heure}h00 → {heureFin(f.heure)}</strong> · match d'1 h
+          <input type="range" min={H_MIN} max={H_MAX} step={1} value={f.heure}
+            style={{ width: '100%', accentColor: 'var(--lime)', marginTop: 8 }}
+            onChange={(e) => setF({ ...f, heure: Number(e.target.value) })} />
         </label>
         <button className="btn vert grand" disabled={envoi}>{envoi ? 'Publication…' : "Publier l'offre"}</button>
       </form>
@@ -124,7 +141,7 @@ export default function Proposer() {
           <div className="corps">
             <h3>{libelleFormat(o.format)}</h3>
             <p className="meta">
-              {libelleStatutOffre(o.statut)}{o.niveauPrefere ? ` · ${o.niveauPrefere}` : ''} · jusqu'à {heure(o.fin)}
+              {libelleStatutOffre(o.statut)} · jusqu'à {heure(o.fin)}
             </p>
             <div className="pied">
               {o.resultat ? <span className="badge gris">{libelleResultat(o.resultat)}</span>
